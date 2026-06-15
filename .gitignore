@@ -1,0 +1,25 @@
+# Secretos y entorno
+.env
+*.pem
+*.key
+certs/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Backups locales temporales
+*.dump
+*.sql.gz
+backups/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+
+# SO / editores
+.DS_Store
+.vscode/
+*.log

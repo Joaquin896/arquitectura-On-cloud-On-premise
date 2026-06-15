@@ -1,0 +1,57 @@
+# ============================================================
+#  ACME ERP - Stack de despliegue (PoC Evaluación N°3 CI3051)
+#  Ruta de trabajo en el nodo EC2: /srv/acme-erp/
+#  Capa de aplicación (IaaS/EC2) + conexión a BD PaaS (AWS RDS)
+# ============================================================
+# Levantar:   docker compose up -d --build
+# Estado:     docker compose ps
+# Logs:       docker compose logs -f frontend
+# Detener:    docker compose down
+# ------------------------------------------------------------
+services:
+
+  frontend:
+    build: ./frontend
+    image: acme-erp/frontend:1.0
+    container_name: acme-erp-frontend
+    restart: unless-stopped
+    # En producción se expone 443 (TLS) detrás del Security Group.
+    # 3000 es el puerto interno de Node/Express.
+    ports:
+      - "443:3000"     # HTTPS -> Express (terminación TLS por reverse proxy o ALB)
+      - "80:3000"      # redirección a HTTPS (opcional, manejada por proxy)
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    # NO usamos un contenedor de PostgreSQL: la BD corre como PaaS en AWS RDS.
+    # La variable DB_HOST apunta al endpoint del RDS (ver .env.example).
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - acme-net
+
+# Servicio auxiliar opcional para ejecutar el backup manualmente dentro del stack.
+# En producción el backup se ejecuta vía cron en el host (ver scripts/backup_rds_to_s3.sh).
+  backup:
+    image: amazon/aws-cli:2.15.0
+    container_name: acme-erp-backup
+    profiles: ["tools"]          # solo se levanta con: docker compose --profile tools run backup
+    env_file:
+      - .env
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["echo 'Usar scripts/backup_rds_to_s3.sh en el host (cron diario).'"]
+    networks:
+      - acme-net
+
+networks:
+  acme-net:
+    driver: bridge
