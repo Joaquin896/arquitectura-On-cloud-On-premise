@@ -1,0 +1,28 @@
+# ---- ACME ERP Frontend (Node.js / Express) ----
+FROM node:20-alpine
+
+# Buenas practicas: ejecutar como usuario no root
+WORKDIR /app
+
+# Instalar dependencias primero (capa cacheable)
+COPY package*.json ./
+RUN npm install --omit=dev && npm cache clean --force
+
+# Copiar codigo de la aplicacion
+COPY . .
+
+# Carpeta para el bundle CA de RDS (se monta o copia en despliegue)
+RUN mkdir -p /app/certs
+
+# Usuario no privilegiado
+RUN addgroup -S acme && adduser -S acme -G acme \
+    && chown -R acme:acme /app
+USER acme
+
+EXPOSE 3000
+
+# Healthcheck del contenedor
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+CMD ["node", "src/server.js"]
